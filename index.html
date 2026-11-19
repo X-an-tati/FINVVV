@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureFin Core Enterprise — Banking Security & Process Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(244, 63, 94, 0.9); box-shadow: 0 0 20px rgba(244, 63, 94, 0.35); }
+            50% { border-color: rgba(244, 63, 94, 0.2); box-shadow: 0 0 5px rgba(244, 63, 94, 0.1); }
+        }
+        .under-attack { animation: pulse-border 0.8s infinite; }
+    </style>
+</head>
+<body id="mainBody" class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center py-8 px-4 transition-colors duration-300">
+
+    <!-- Верхняя панель управления + Переключатель ролей RBAC -->
+    <header class="w-full max-w-6xl mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-5">
+        <div>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="px-2.5 py-1 text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded">PCI-DSS READY</span>
+                <span class="px-2.5 py-1 text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">RBAC + IDEMPOTENCY + INCIDENTS</span>
+            </div>
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-500 mt-2">
+                SecureFin Core Enterprise
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Контур банка: безопасность данных, клиентские лимиты, идемпотентность и разбор инцидентов</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+            <!-- Переключатель текущей роли сотрудника -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 flex items-center gap-2">
+                <span class="text-[11px] text-slate-400">Роль:</span>
+                <select id="activeRole" class="bg-slate-800 text-cyan-300 text-xs font-mono font-bold rounded px-2 py-1 focus:outline-none">
+                    <option value="SECURITY_OFFICER">SECURITY_OFFICER</option>
+                    <option value="OPERATOR">OPERATOR</option>
+                    <option value="AUDITOR">AUDITOR</option>
+                </select>
+            </div>
+            <button onclick="checkChainAndView()" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition shadow-lg">
+                🔗 Цепь БД & VIEW
+            </button>
+            <button onclick="exportSignedReport()" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition shadow-lg">
+                📄 Отчет (SHA-256)
+            </button>
+            <button id="redTeamBtn" onclick="launchRedTeamAttack()" class="bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-black text-xs px-4 py-2.5 rounded-xl transition shadow-lg border border-rose-400/40">
+                ☠️ RED TEAM ATTACK
+            </button>
+        </div>
+    </header>
+
+    <!-- KILL SWITCH (DEFCON) -->
+    <section class="w-full max-w-6xl mb-6">
+        <div class="bg-gradient-to-r from-rose-950/60 via-slate-900 to-slate-900 border border-rose-600/50 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+                <div class="relative flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600/20 border border-rose-500">
+                    <span class="text-rose-400 font-black text-xs">⚠️</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-sm font-bold text-rose-300">Аварийный контур защиты (DEFCON Status)</h3>
+                        <span id="defconBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded">STATUS: NORMAL</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">Доступно только для роли <b>SECURITY_OFFICER</b>. Фиксируется в журнале инцидентов.</p>
+                </div>
+            </div>
+            <button id="killSwitchBtn" onclick="toggleKillSwitch()" class="w-full md:w-auto bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 hover:to-red-700 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-rose-400/60">
+                🛑 EMERGENCY KILL SWITCH
+            </button>
+        </div>
+    </section>
+
+    <!-- KPI Метрики -->
+    <section class="w-full max-w-6xl mb-6 grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+            <span class="text-[11px] text-slate-400 uppercase">Успешные</span>
+            <div id="statSuccess" class="text-xl font-black text-emerald-400 mt-1">0</div>
+        </div>
+        <div id="blockedCard" class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg transition-all">
+            <span class="text-[11px] text-slate-400 uppercase">Фрод-блокировки</span>
+            <div id="statBlocked" class="text-xl font-black text-rose-500 mt-1">0</div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+            <span class="text-[11px] text-slate-400 uppercase">Оборот</span>
+            <div id="statVolume" class="text-xl font-black text-cyan-400 mt-1">0 KZT</div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+            <span class="text-[11px] text-slate-400 uppercase">Пик Risk Score</span>
+            <div id="statRisk" class="text-xl font-black text-amber-400 mt-1">0 / 100</div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+            <span class="text-[11px] text-slate-400 uppercase">IP в блеклисте</span>
+            <div id="statDbIp" class="text-xl font-black text-purple-400 mt-1">0</div>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+            <span class="text-[11px] text-slate-400 uppercase">Открыто инцидентов</span>
+            <div id="statIncidents" class="text-xl font-black text-orange-400 mt-1">0</div>
+        </div>
+    </section>
+
+    <!-- Основная сетка -->
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Левая колонка: Клиент и лимиты -->
+        <div class="space-y-6">
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h2 class="text-lg font-bold mb-3 text-cyan-400">👤 Регистрация клиента</h2>
+                <form id="registerForm" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Логин</label>
+                        <input type="text" id="regUsername" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400" placeholder="alice">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Пароль (SHA-256)</label>
+                        <input type="password" id="regPassword" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400" placeholder="••••••••">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Депозит (KZT)</label>
+                            <input type="number" id="regBalance" value="500000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Лимит/день</label>
+                            <input type="number" id="regLimit" value="300000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded-lg text-sm transition">Создать счет</button>
+                </form>
+                <div id="regResult" class="mt-3 text-xs hidden p-2.5 rounded-lg"></div>
+            </section>
+
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h2 class="text-lg font-bold mb-3 text-blue-400">🔐 Дешифровка баланса и лимитов</h2>
+                <form id="balanceForm" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">ID или логин</label>
+                        <input type="text" id="balUserId" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="1 или alice">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-sm transition">Проверить счёт</button>
+                </form>
+                <div id="balanceResult" class="mt-3 hidden bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-1.5"></div>
+            </section>
+        </div>
+
+        <!-- Центральная и правая колонки -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Перевод с ключом идемпотентности -->
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                    <h2 class="text-lg font-bold text-emerald-400">💸 Транзакционный шлюз + Идемпотентность</h2>
+                    <button type="button" onclick="generateNewIdempotencyKey()" class="text-xs text-cyan-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md border border-slate-700">
+                        🔄 Новый ключ транзакции
+                    </button>
+                </div>
+
+                <form id="transferForm" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">ID Отправителя</label>
+                        <input type="number" id="trSender" required value="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">ID Получателя</label>
+                        <input type="number" id="trReceiver" required value="2" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Сумма (KZT)</label>
+                        <input type="number" id="trAmount" required value="15000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Idempotency Key</label>
+                        <input type="text" id="trIdemKey" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-emerald-400">
+                    </div>
+
+                    <div id="otpBox" class="hidden md:col-span-4 bg-amber-950/40 border border-amber-500/50 rounded-xl p-3.5 flex flex-col md:flex-row items-center justify-between gap-3">
+                        <div class="text-xs text-amber-200">
+                            <p class="font-bold text-amber-400">📲 Требуется подтверждение 2FA</p>
+                            <p class="mt-0.5">Код: <span id="demoOtpDisplay" class="font-mono font-black text-base text-white bg-amber-600/40 px-2 py-0.5 rounded">------</span></p>
+                        </div>
+                        <input type="text" id="trOtpInput" maxlength="6" placeholder="Код" class="bg-slate-900 border border-amber-500/60 rounded-lg px-3 py-2 text-sm font-mono text-center text-white w-36 focus:outline-none">
+                    </div>
+
+                    <button type="submit" class="md:col-span-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg text-sm transition">
+                        Выполнить перевод (повторный клик с тем же ключом не спишет дважды)
+                    </button>
+                </form>
+                <div id="transferResult" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
+            </section>
+
+            <!-- Журнал инцидентов (Incident Timeline) -->
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold text-orange-400">🚨 Журнал инцидентов безопасности (Incident Timeline)</h2>
+                    <button onclick="loadIncidents()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
+                </div>
+                <div id="incidentsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-32 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+                    <p class="text-slate-500">Загрузка инцидентов...</p>
+                </div>
+            </section>
+
+            <!-- Неизменяемый реестр аудита -->
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-bold text-amber-400">📜 Неизменяемый реестр аудита (Hash-Chained Ledger)</h2>
+                    <button onclick="refreshAll()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
+                </div>
+                <div id="logsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-36 overflow-y-auto space-y-1.5 font-mono text-xs text-slate-300">
+                    <p class="text-slate-500">Загрузка логов...</p>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Модалка отчета -->
+    <div id="reportModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-cyan-500/50 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-cyan-400">📜 Compliance & DB Audit Report</h3>
+                <button onclick="closeReportModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 text-xs font-mono">
+                <p><span class="text-slate-400">Стандарт:</span> <span class="text-emerald-400" id="repStandard"></span></p>
+                <p><span class="text-slate-400">Сгенерирован:</span> <span class="text-white" id="repTime"></span></p>
+                <p><span class="text-slate-400">Всего записей:</span> <span class="text-cyan-300" id="repCounts"></span></p>
+                <div class="pt-2 border-t border-slate-800">
+                    <p class="text-amber-400 font-bold mb-1">SHA-256 Digest:</p>
+                    <p id="repHash" class="bg-slate-900 p-2 rounded text-emerald-300 break-all select-all border border-emerald-900/50"></p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button onclick="downloadJsonReport()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition">Скачать JSON</button>
+                <button onclick="closeReportModal()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2 rounded-lg transition">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка проверки цепи и VIEW -->
+    <div id="chainModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-emerald-500/50 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-emerald-400">🔗 Целостность хеш-цепочки и срез VIEW</h3>
+                <button onclick="closeChainModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <div id="chainSummary" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono"></div>
+            <div>
+                <p class="text-xs font-bold text-cyan-300 mb-2">Срез представления v_transactions_overview (последние 10):</p>
+                <div id="viewRowsBox" class="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-60 overflow-y-auto space-y-1.5 text-xs font-mono"></div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="closeChainModal()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2 rounded-lg transition">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let latestReportData = null;
+
+        function generateNewIdempotencyKey() {
+            document.getElementById('trIdemKey').value = "tx_" + Math.random().toString(36).substring(2, 10);
+        }
+        generateNewIdempotencyKey();
+
+        function getSelectedRole() {
+            return document.getElementById('activeRole').value;
+        }
+
+        async function refreshAll() {
+            await Promise.all([loadLogs(), loadStats(), loadIncidents()]);
+        }
+
+        async function checkChainAndView() {
+            const res = await fetch(`${API_URL}/db-chain-check`);
+            const data = await res.json();
+            const sumBox = document.getElementById('chainSummary');
+            const viewBox = document.getElementById('viewRowsBox');
+
+            if (data.chain_valid) {
+                sumBox.innerHTML = `<p class="text-emerald-400 font-bold">✅ Цепочка хешей аудита цела (проверено записей: ${data.total_audit_rows}). Подделок не обнаружено.</p>`;
+            } else {
+                sumBox.innerHTML = `<p class="text-rose-400 font-bold">🚨 Нарушена целостность хеш-цепочки на записи ID #${data.broken_at_id}!</p>`;
+            }
+
+            viewBox.innerHTML = "";
+            if (data.recent_view_transactions && data.recent_view_transactions.length > 0) {
+                data.recent_view_transactions.forEach(tx => {
+                    const div = document.createElement('div');
+                    div.className = "border-b border-slate-900 pb-1 flex justify-between";
+                    div.innerHTML = `<span>#${tx.tx_id}: <b>${tx.sender_username || '?'}</b> → <b>${tx.receiver_username || '?'}</b> (${tx.amount} KZT)</span><span class="${tx.status === 'SUCCESS' ? 'text-emerald-400' : 'text-rose-400'}">${tx.status}</span>`;
+                    viewBox.appendChild(div);
+                });
+            } else {
+                viewBox.innerHTML = `<p class="text-slate-500">Транзакций пока нет.</p>`;
+            }
+
+            document.getElementById('chainModal').classList.remove('hidden');
+        }
+
+        function closeChainModal() {
+            document.getElementById('chainModal').classList.add('hidden');
+        }
+
+        async function toggleKillSwitch() {
+            try {
+                const res = await fetch(`${API_URL}/emergency-lockdown`, {
+                    method: 'POST',
+                    headers: { 'X-Role': getSelectedRole() }
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.detail || "Доступ запрещён");
+                    return;
+                }
+
+                const body = document.getElementById('mainBody');
+                const badge = document.getElementById('defconBadge');
+                const btn = document.getElementById('killSwitchBtn');
+
+                if (data.system_lockdown) {
+                    body.style.border = "4px solid #f43f5e";
+                    badge.innerText = "STATUS: DEFCON 1 (LOCKDOWN)";
+                    badge.className = "px-2.5 py-0.5 text-[10px] font-mono font-bold bg-rose-600 text-white border border-rose-400 rounded animate-pulse";
+                    btn.innerText = "🟢 ОТКЛЮЧИТЬ KILL SWITCH";
+                    btn.className = "w-full md:w-auto bg-gradient-to-r from-emerald-600 to-green-800 hover:from-emerald-500 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-emerald-400/60";
+                } else {
+                    body.style.border = "none";
+                    badge.innerText = "STATUS: NORMAL";
+                    badge.className = "px-2.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded";
+                    btn.innerText = "🛑 EMERGENCY KILL SWITCH";
+                    btn.className = "w-full md:w-auto bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-rose-400/60";
+                }
+                refreshAll();
+            } catch (e) {
+                alert("❌ Ошибка связи с сервером.");
+            }
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            const initial_balance = parseFloat(document.getElementById('regBalance').value);
+            const daily_limit = parseFloat(document.getElementById('regLimit').value);
+            const box = document.getElementById('regResult');
+
+            const res = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, initial_balance, daily_limit })
+            });
+            const data = await res.json();
+            box.classList.remove('hidden');
+            if (res.ok) {
+                box.className = "mt-3 text-xs p-2.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-200";
+                box.innerHTML = `✅ Счет открыт! <b>User ID: ${data.user_id}</b>`;
+            } else {
+                box.className = "mt-3 text-xs p-2.5 rounded-lg bg-rose-950 border border-rose-800 text-rose-200";
+                box.innerHTML = `❌ ${data.detail}`;
+            }
+            refreshAll();
+        });
+
+        document.getElementById('balanceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('balUserId').value.trim();
+            const resBox = document.getElementById('balanceResult');
+
+            try {
+                const res = await fetch(`${API_URL}/account/${encodeURIComponent(userId)}?t=${Date.now()}`);
+                const data = await res.json();
+                resBox.classList.remove('hidden');
+
+                if (res.ok && data.status === "success") {
+                    resBox.innerHTML = `
+                        <p><strong>Клиент:</strong> <span class="text-cyan-300 font-bold">${data.username} (ID: ${data.user_id})</span></p>
+                        <p><strong>Доступно:</strong> <span class="text-emerald-400 font-bold text-sm">${data.balance.toLocaleString()} ${data.currency}</span></p>
+                        <p><strong>Дневной лимит:</strong> <span class="text-amber-300">${data.remaining_daily_limit.toLocaleString()} / ${data.daily_limit.toLocaleString()} ${data.currency}</span></p>
+                        <p class="text-slate-500 font-mono break-all"><strong>Cipher:</strong> <span class="text-amber-400/80">${data.raw_cipher_preview}</span></p>
+                    `;
+                } else {
+                    resBox.innerHTML = `<p class="text-rose-400">❌ Счет не найден.</p>`;
+                }
+            } catch (err) {
+                resBox.classList.remove('hidden');
+                resBox.innerHTML = `<p class="text-rose-400">❌ Ошибка связи.</p>`;
+            }
+        });
+
+        document.getElementById('transferForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const sender_user_id = parseInt(document.getElementById('trSender').value);
+            const receiver_user_id = parseInt(document.getElementById('trReceiver').value);
+            const amount = parseFloat(document.getElementById('trAmount').value);
+            const idempotency_key = document.getElementById('trIdemKey').value.trim() || null;
+            const otpVal = document.getElementById('trOtpInput').value.trim();
+            const box = document.getElementById('transferResult');
+            const otpBox = document.getElementById('otpBox');
+
+            const res = await fetch(`${API_URL}/transfer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sender_user_id,
+                    receiver_user_id,
+                    amount,
+                    otp_code: otpVal || null,
+                    idempotency_key,
+                    is_red_team: false
+                })
+            });
+            const data = await res.json();
+            box.classList.remove('hidden');
+
+            if (res.status === 401 && data.detail && data.detail.status === "2FA_REQUIRED") {
+                otpBox.classList.remove('hidden');
+                document.getElementById('demoOtpDisplay').innerText = data.detail.demo_otp_push;
+                document.getElementById('trOtpInput').value = data.detail.demo_otp_push;
+                box.className = "mt-3 p-3 rounded-lg text-xs bg-amber-950/70 border border-amber-600 text-amber-200";
+                box.innerHTML = `🔐 <b>2FA:</b> Код подставлен, нажмите еще раз для подтверждения.`;
+                refreshAll();
+                return;
+            }
+
+            otpBox.classList.add('hidden');
+            document.getElementById('trOtpInput').value = "";
+
+            if (res.ok && data.status === "IDEMPOTENT_REPLAY") {
+                box.className = "mt-3 p-3 rounded-lg text-xs bg-cyan-950 border border-cyan-700 text-cyan-200";
+                box.innerHTML = `🛡️ <b>ИДЕМПОТЕНТНОСТЬ СРАБОТАЛА:</b> ${data.message} Баланс не изменился (${data.sender_new_balance.toLocaleString()} KZT).`;
+            } else if (res.ok) {
+                box.className = "mt-3 p-3 rounded-lg text-xs bg-emerald-950 border border-emerald-800 text-emerald-200";
+                box.innerHTML = `✅ <b>Перевод выполнен!</b> Сумма: ${data.transferred_amount.toLocaleString()} KZT | Остаток: ${data.sender_new_balance.toLocaleString()} KZT`;
+            } else {
+                const detail = data.detail;
+                box.className = "mt-3 p-3 rounded-lg text-xs bg-rose-950 border border-rose-800 text-rose-200";
+                if (typeof detail === 'object') {
+                    box.innerHTML = `🚨 <b>БЛОКИРОВКА:</b> ${detail.reason || ''} (${detail.details ? detail.details.join(', ') : ''})`;
+                } else {
+                    box.innerHTML = `❌ ${detail}`;
+                }
+            }
+            refreshAll();
+        });
+
+        async function launchRedTeamAttack() {
+            const btn = document.getElementById('redTeamBtn');
+            const blockedCard = document.getElementById('blockedCard');
+            const senderId = parseInt(document.getElementById('trSender').value) || 1;
+            const receiverId = parseInt(document.getElementById('trReceiver').value) || 2;
+
+            btn.disabled = true;
+            btn.innerText = "⚡ АТАКА В БД...";
+            blockedCard.classList.add('under-attack');
+
+            for (let i = 1; i <= 3; i++) {
+                try {
+                    await fetch(`${API_URL}/transfer`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sender_user_id: senderId, receiver_user_id: receiverId, amount: 2000000, is_red_team: true })
+                    });
+                } catch (e) {}
+                await refreshAll();
+                await new Promise(r => setTimeout(r, 300));
+            }
+
+            setTimeout(() => {
+                blockedCard.classList.remove('under-attack');
+                btn.disabled = false;
+                btn.innerText = "☠️ RED TEAM ATTACK";
+            }, 1000);
+        }
+
+        async function resolveIncident(id) {
+            const res = await fetch(`${API_URL}/incidents/${id}/resolve`, {
+                method: 'POST',
+                headers: { 'X-Role': getSelectedRole() }
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.detail || "Недостаточно прав");
+                return;
+            }
+            refreshAll();
+        }
+
+        async function loadIncidents() {
+            const res = await fetch(`${API_URL}/incidents`);
+            const data = await res.json();
+            const container = document.getElementById('incidentsContainer');
+            container.innerHTML = "";
+            if (data.incidents && data.incidents.length > 0) {
+                data.incidents.forEach(inc => {
+                    const isOpen = inc.status === 'OPEN';
+                    const item = document.createElement('div');
+                    item.className = "border-b border-slate-900 pb-1.5 flex justify-between items-center gap-2";
+                    item.innerHTML = `
+                        <div>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${isOpen ? 'bg-rose-600 text-white' : 'bg-emerald-900 text-emerald-300'}">${inc.status}</span>
+                            <strong class="text-orange-300 ml-1">[${inc.incident_type}]</strong> ${inc.summary}
+                        </div>
+                        ${isOpen ? `<button onclick="resolveIncident(${inc.id})" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-1 rounded text-[10px] shrink-0">Закрыть</button>` : ''}
+                    `;
+                    container.appendChild(item);
+                });
+            } else {
+                container.innerHTML = `<p class="text-slate-500">Открытых и архивных инцидентов пока нет.</p>`;
+            }
+        }
+
+        async function exportSignedReport() {
+            const res = await fetch(`${API_URL}/export-report`);
+            const data = await res.json();
+            latestReportData = data;
+            document.getElementById('repStandard').innerText = data.encryption_standard;
+            document.getElementById('repTime').innerText = data.generated_at;
+            document.getElementById('repCounts').innerText = `${data.total_transactions} транзакций / ${data.total_incidents} инцидентов / ${data.db_blocked_ips} IP в блеклисте`;
+            document.getElementById('repHash').innerText = data.cryptographic_seal_sha256;
+            document.getElementById('reportModal').classList.remove('hidden');
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').classList.add('hidden');
+        }
+
+        function downloadJsonReport() {
+            if (!latestReportData) return;
+            const blob = new Blob([JSON.stringify(latestReportData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `SecureFin_Audit_Report_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function loadLogs() {
+            const res = await fetch(`${API_URL}/audit-logs`);
+            const data = await res.json();
+            const container = document.getElementById('logsContainer');
+            container.innerHTML = "";
+            if (data.logs && data.logs.length > 0) {
+                data.logs.forEach(log => {
+                    const isCrit = log.action.includes("TAMPER") || log.action.includes("FRAUD") || log.action.includes("LOCKDOWN") || log.action.includes("LIMIT_EXCEEDED");
+                    const color = isCrit ? "text-rose-400" : "text-emerald-400";
+                    const item = document.createElement('div');
+                    item.className = "border-b border-slate-900 pb-1";
+                    item.innerHTML = `<span class="text-slate-500">[${log.created_at}]</span> <strong class="${color}">[${log.action}]</strong> ${log.details}`;
+                    container.appendChild(item);
+                });
+            }
+        }
+
+        async function loadStats() {
+            const res = await fetch(`${API_URL}/stats`);
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('statSuccess').innerText = data.successful_transactions;
+                document.getElementById('statBlocked').innerText = data.blocked_fraud_attempts;
+                document.getElementById('statVolume').innerText = `${data.total_protected_volume_kzt.toLocaleString()} KZT`;
+                document.getElementById('statRisk').innerText = `${data.peak_risk_score} / 100`;
+                document.getElementById('statDbIp').innerText = data.db_blacklisted_ips;
+                document.getElementById('statIncidents').innerText = data.open_incidents;
+            }
+        }
+
+        refreshAll();
+    </script>
+</body>
+</html>
