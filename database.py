@@ -1,19 +1,72 @@
 import sqlite3
+from security import hash_password, encrypt_data
 
 DB_NAME = "securefin_core.db"
 
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=15.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA journal_mode = WAL;")
     return conn
+
+
+def ensure_default_staff(cursor):
+    default_staff = [
+        ("soc_officer", "soc123", "SECURITY_OFFICER", 1000000.0, 500000.0),
+        ("bank_operator", "op123", "OPERATOR", 500000.0, 300000.0),
+        ("chief_auditor", "aud123", "AUDITOR", 250000.0, 100000.0),
+    ]
+    for uname, raw_pwd, role, bal, limit in default_staff:
+        cursor.execute("SELECT id FROM users WHERE username = ?", (uname,))
+        row = cursor.fetchone()
+        if not row:
+            cursor.execute(
+                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                (uname, hash_password(raw_pwd), role),
+            )
+            uid = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO accounts (user_id, encrypted_balance, daily_limit) VALUES (?, ?, ?)",
+                (uid, encrypt_data(str(bal)), limit),
+            )
+        else:
+            uid = row["id"]
+            cursor.execute("SELECT id FROM accounts WHERE user_id = ?", (uid,))
+            if not cursor.fetchone():
+                cursor.execute(
+                    "INSERT INTO accounts (user_id, encrypted_balance, daily_limit) VALUES (?, ?, ?)",
+                    (uid, encrypt_data(str(bal)), limit),
+                )
 
 
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("BEGIN IMMEDIATE;")
 
-    # Пользователи с ролевой моделью (CLIENT / OPERATOR / SECURITY_OFFICER / AUDITOR)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        INSERT OR IGNORE INTO system_settings (key, value)
+        VALUES ('system_lockdown', '0')
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS otp_codes (
+            user_id INTEGER PRIMARY KEY,
+            code TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,7 +77,30 @@ def init_db():
         )
     """)
 
-    # Счета с дневным лимитом расходных операций
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS account_applications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            applicant_username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            requested_balance REAL NOT NULL DEFAULT 300000.0 CHECK (requested_balance >= 0),
+            requested_limit REAL NOT NULL DEFAULT 300000.0 CHECK (requested_limit > 0),
+            status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+            reviewed_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at TIMESTAMP,
+            FOREIGN KEY (reviewed_by) REFERENCES users(id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +113,6 @@ def init_db():
         )
     """)
 
-    # Транзакции с уникальным idempotency_key для защиты от двойного списания
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +126,6 @@ def init_db():
         )
     """)
 
-    # Хеш-цепочка аудита
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +138,17 @@ def init_db():
         )
     """)
 
-    # Неизменяемая история изменения счетов
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS db_trigger_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name TEXT NOT NULL,
+            row_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            details TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS account_history (
             history_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +159,6 @@ def init_db():
         )
     """)
 
-    # Персистентный черный список IP
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS blocked_ips (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +169,6 @@ def init_db():
         )
     """)
 
-    # Журнал инцидентов и разборов (Incident Timeline)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS incidents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,24 +182,21 @@ def init_db():
         )
     """)
 
-    # Защитный триггер при прямом изменении таблицы accounts в обход приложения
     cursor.execute("DROP TRIGGER IF EXISTS trigger_tamper_protection;")
     cursor.execute("""
         CREATE TRIGGER trigger_tamper_protection
         AFTER UPDATE ON accounts
         BEGIN
-            INSERT INTO audit_logs (user_id, action, details, prev_hash, record_hash)
+            INSERT INTO db_trigger_events (table_name, row_id, event_type, details)
             VALUES (
-                NEW.user_id,
-                'DB_TRIGGER_ACCOUNT_UPDATED',
-                'Зафиксировано обновление строки в таблице accounts на уровне SQLite.',
-                'TRIGGER',
-                'TRIGGER_HASH'
+                'accounts',
+                NEW.id,
+                'AFTER_UPDATE',
+                'Обновлена запись счёта user_id=' || NEW.user_id || ', daily_limit=' || NEW.daily_limit
             );
         END;
     """)
 
-    # Триггер истории изменения баланса
     cursor.execute("DROP TRIGGER IF EXISTS trigger_account_history;")
     cursor.execute("""
         CREATE TRIGGER trigger_account_history
@@ -128,7 +207,6 @@ def init_db():
         END;
     """)
 
-    # Наглядное SQL VIEW: объединяет транзакции, логины отправителей и получателей
     cursor.execute("DROP VIEW IF EXISTS v_transactions_overview;")
     cursor.execute("""
         CREATE VIEW v_transactions_overview AS
@@ -148,6 +226,8 @@ def init_db():
         LEFT JOIN users u_recv ON a_recv.user_id = u_recv.id;
     """)
 
-    conn.commit()
+    ensure_default_staff(cursor)
+
+    cursor.execute("COMMIT;")
     cursor.close()
     conn.close()

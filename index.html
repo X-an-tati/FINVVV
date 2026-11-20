@@ -15,203 +15,337 @@
 </head>
 <body id="mainBody" class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center py-8 px-4 transition-colors duration-300">
 
-    <!-- Верхняя панель управления + Переключатель ролей RBAC -->
-    <header class="w-full max-w-6xl mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-5">
-        <div>
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="px-2.5 py-1 text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded">PCI-DSS READY</span>
-                <span class="px-2.5 py-1 text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">RBAC + IDEMPOTENCY + INCIDENTS</span>
+    <!-- ЭКРАН АВТОРИЗАЦИИ И ПОДАЧИ ЗАЯВКИ НА ОТКРЫТИЕ СЧЁТА -->
+    <div id="authScreen" class="w-full max-w-5xl my-auto">
+        <div class="text-center mb-8">
+            <div class="inline-flex flex-wrap justify-center items-center gap-2 mb-3">
+                <span class="px-2.5 py-1 text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded">CORE BANKING WORKFLOW</span>
+                <span class="px-2.5 py-1 text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">NO SELF-ELEVATION</span>
             </div>
-            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-500 mt-2">
+            <h1 class="text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-500">
                 SecureFin Core Enterprise
             </h1>
-            <p class="text-slate-400 text-sm mt-1">Контур банка: безопасность данных, клиентские лимиты, идемпотентность и разбор инцидентов</p>
+            <p class="text-slate-400 text-sm mt-2">Клиент подаёт заявку на открытие счёта → операционист проверяет и одобряет → клиент входит в свой кабинет</p>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2.5">
-            <!-- Переключатель текущей роли сотрудника -->
-            <div class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 flex items-center gap-2">
-                <span class="text-[11px] text-slate-400">Роль:</span>
-                <select id="activeRole" class="bg-slate-800 text-cyan-300 text-xs font-mono font-bold rounded px-2 py-1 focus:outline-none">
-                    <option value="SECURITY_OFFICER">SECURITY_OFFICER</option>
-                    <option value="OPERATOR">OPERATOR</option>
-                    <option value="AUDITOR">AUDITOR</option>
-                </select>
-            </div>
-            <button onclick="checkChainAndView()" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition shadow-lg">
-                🔗 Цепь БД & VIEW
-            </button>
-            <button onclick="exportSignedReport()" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition shadow-lg">
-                📄 Отчет (SHA-256)
-            </button>
-            <button id="redTeamBtn" onclick="launchRedTeamAttack()" class="bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-black text-xs px-4 py-2.5 rounded-xl transition shadow-lg border border-rose-400/40">
-                ☠️ RED TEAM ATTACK
-            </button>
-        </div>
-    </header>
-
-    <!-- KILL SWITCH (DEFCON) -->
-    <section class="w-full max-w-6xl mb-6">
-        <div class="bg-gradient-to-r from-rose-950/60 via-slate-900 to-slate-900 border border-rose-600/50 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-            <div class="flex items-center gap-3.5">
-                <div class="relative flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600/20 border border-rose-500">
-                    <span class="text-rose-400 font-black text-xs">⚠️</span>
-                </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Вход + Быстрый демо-вход под сидированными ролями сотрудников -->
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col justify-between">
                 <div>
-                    <div class="flex items-center gap-2">
-                        <h3 class="text-sm font-bold text-rose-300">Аварийный контур защиты (DEFCON Status)</h3>
-                        <span id="defconBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded">STATUS: NORMAL</span>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-0.5">Доступно только для роли <b>SECURITY_OFFICER</b>. Фиксируется в журнале инцидентов.</p>
+                    <h2 class="text-xl font-bold text-cyan-400 mb-1">🔐 Вход в систему</h2>
+                    <p class="text-xs text-slate-400 mb-4">Доступ открыт сотрудникам банка и клиентам с одобренной заявкой</p>
+
+                    <form id="loginForm" class="space-y-3.5">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Логин</label>
+                            <input type="text" id="loginUsername" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-cyan-400" placeholder="bank_operator или логин клиента">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Пароль</label>
+                            <input type="password" id="loginPassword" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-cyan-400" placeholder="••••••••">
+                        </div>
+                        <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition">
+                            Войти в систему
+                        </button>
+                    </form>
+                    <div id="loginError" class="hidden mt-3 p-2.5 rounded-lg bg-rose-950 border border-rose-800 text-rose-200 text-xs"></div>
                 </div>
+
+                <div class="mt-6 pt-5 border-t border-slate-800">
+                    <p class="text-xs font-bold text-slate-300 mb-2.5">⚡ Демо-вход под штатными ролями банка:</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" onclick="quickLogin('bank_operator', 'op123')" class="bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 rounded-xl p-2.5 text-left transition">
+                            <div class="text-[11px] font-mono font-bold text-emerald-300">OPERATOR</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">bank_operator • заявки и счета</div>
+                        </button>
+                        <button type="button" onclick="quickLogin('soc_officer', 'soc123')" class="bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/40 rounded-xl p-2.5 text-left transition">
+                            <div class="text-[11px] font-mono font-bold text-rose-300">SECURITY_OFFICER</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">soc_officer • Kill Switch и ИБ</div>
+                        </button>
+                        <button type="button" onclick="quickLogin('chief_auditor', 'aud123')" class="bg-amber-950/60 hover:bg-amber-900/70 border border-amber-500/40 rounded-xl p-2.5 text-left transition">
+                            <div class="text-[11px] font-mono font-bold text-amber-300">AUDITOR</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">chief_auditor • только аудит</div>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Подача заявки клиента на открытие счёта -->
+            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                    <h2 class="text-xl font-bold text-emerald-400">📋 Заявка на открытие счёта</h2>
+                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded">STATUS: PENDING</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-4">Создаёт только заявку на клиентский счёт; выдать себе роль сотрудника через форму невозможно</p>
+
+                <form id="applicationForm" class="space-y-3.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Желаемый логин клиента</label>
+                            <input type="text" id="appUsername" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" placeholder="alice">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Пароль для входа</label>
+                            <input type="password" id="appPassword" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" placeholder="••••••">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Стартовый депозит (KZT)</label>
+                            <input type="number" id="appBalance" value="500000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Запрашиваемый лимит/день (KZT)</label>
+                            <input type="number" id="appLimit" value="300000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm transition">
+                        Отправить заявку операционисту
+                    </button>
+                </form>
+                <div id="appResult" class="hidden mt-3 p-3 rounded-lg text-xs"></div>
+            </section>
+        </div>
+    </div>
+
+    <!-- ОСНОВНАЯ ПАНЕЛЬ УПРАВЛЕНИЯ (ДОСТУПНА ПОСЛЕ ВХОДА) -->
+    <div id="dashboardScreen" class="hidden w-full max-w-6xl">
+        <header class="w-full mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-5">
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="px-2.5 py-1 text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded">PCI-DSS READY</span>
+                    <span class="px-2.5 py-1 text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">VERIFIED SESSION RBAC</span>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-500 mt-2">
+                    SecureFin Core Enterprise
+                </h1>
+                <p id="roleScopeSubtitle" class="text-slate-400 text-sm mt-1">Банковский контур и центр безопасности</p>
             </div>
-            <button id="killSwitchBtn" onclick="toggleKillSwitch()" class="w-full md:w-auto bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 hover:to-red-700 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-rose-400/60">
-                🛑 EMERGENCY KILL SWITCH
-            </button>
-        </div>
-    </section>
 
-    <!-- KPI Метрики -->
-    <section class="w-full max-w-6xl mb-6 grid grid-cols-2 md:grid-cols-6 gap-3">
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
-            <span class="text-[11px] text-slate-400 uppercase">Успешные</span>
-            <div id="statSuccess" class="text-xl font-black text-emerald-400 mt-1">0</div>
-        </div>
-        <div id="blockedCard" class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg transition-all">
-            <span class="text-[11px] text-slate-400 uppercase">Фрод-блокировки</span>
-            <div id="statBlocked" class="text-xl font-black text-rose-500 mt-1">0</div>
-        </div>
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
-            <span class="text-[11px] text-slate-400 uppercase">Оборот</span>
-            <div id="statVolume" class="text-xl font-black text-cyan-400 mt-1">0 KZT</div>
-        </div>
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
-            <span class="text-[11px] text-slate-400 uppercase">Пик Risk Score</span>
-            <div id="statRisk" class="text-xl font-black text-amber-400 mt-1">0 / 100</div>
-        </div>
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
-            <span class="text-[11px] text-slate-400 uppercase">IP в блеклисте</span>
-            <div id="statDbIp" class="text-xl font-black text-purple-400 mt-1">0</div>
-        </div>
-        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
-            <span class="text-[11px] text-slate-400 uppercase">Открыто инцидентов</span>
-            <div id="statIncidents" class="text-xl font-black text-orange-400 mt-1">0</div>
-        </div>
-    </section>
-
-    <!-- Основная сетка -->
-    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <!-- Левая колонка: Клиент и лимиты -->
-        <div class="space-y-6">
-            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <h2 class="text-lg font-bold mb-3 text-cyan-400">👤 Регистрация клиента</h2>
-                <form id="registerForm" class="space-y-3">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="bg-slate-900 border border-cyan-500/40 rounded-xl px-3.5 py-2 flex items-center gap-3">
                     <div>
-                        <label class="block text-xs text-slate-400 mb-1">Логин</label>
-                        <input type="text" id="regUsername" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400" placeholder="alice">
+                        <div class="text-[11px] text-slate-400">Активная сессия: <b id="currentUsername" class="text-white">---</b> (ID: <span id="currentUserId">-</span>)</div>
+                        <div class="text-xs font-mono font-bold text-cyan-300" id="currentUserRole">---</div>
                     </div>
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Пароль (SHA-256)</label>
-                        <input type="password" id="regPassword" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400" placeholder="••••••••">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-xs text-slate-400 mb-1">Депозит (KZT)</label>
-                            <input type="number" id="regBalance" value="500000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-slate-400 mb-1">Лимит/день</label>
-                            <input type="number" id="regLimit" value="300000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-400">
-                        </div>
-                    </div>
-                    <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded-lg text-sm transition">Создать счет</button>
-                </form>
-                <div id="regResult" class="mt-3 text-xs hidden p-2.5 rounded-lg"></div>
-            </section>
-
-            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <h2 class="text-lg font-bold mb-3 text-blue-400">🔐 Дешифровка баланса и лимитов</h2>
-                <form id="balanceForm" class="space-y-3">
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">ID или логин</label>
-                        <input type="text" id="balUserId" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="1 или alice">
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-sm transition">Проверить счёт</button>
-                </form>
-                <div id="balanceResult" class="mt-3 hidden bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-1.5"></div>
-            </section>
-        </div>
-
-        <!-- Центральная и правая колонки -->
-        <div class="lg:col-span-2 space-y-6">
-
-            <!-- Перевод с ключом идемпотентности -->
-            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
-                    <h2 class="text-lg font-bold text-emerald-400">💸 Транзакционный шлюз + Идемпотентность</h2>
-                    <button type="button" onclick="generateNewIdempotencyKey()" class="text-xs text-cyan-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md border border-slate-700">
-                        🔄 Новый ключ транзакции
+                    <button onclick="logoutUser()" class="bg-slate-800 hover:bg-rose-900/70 text-rose-300 border border-rose-500/30 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+                        Выйти
                     </button>
                 </div>
 
-                <form id="transferForm" class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">ID Отправителя</label>
-                        <input type="number" id="trSender" required value="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">ID Получателя</label>
-                        <input type="number" id="trReceiver" required value="2" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Сумма (KZT)</label>
-                        <input type="number" id="trAmount" required value="15000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Idempotency Key</label>
-                        <input type="text" id="trIdemKey" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-emerald-400">
-                    </div>
+                <button id="staffChainBtn" onclick="checkChainAndView()" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition shadow-lg">
+                    🔗 Цепь БД & VIEW
+                </button>
+                <button id="staffReportBtn" onclick="exportSignedReport()" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 font-semibold text-xs px-3.5 py-2.5 rounded-xl transition shadow-lg">
+                    📄 Отчет (SHA-256)
+                </button>
+                <button id="redTeamBtn" onclick="launchRedTeamAttack()" class="bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-black text-xs px-4 py-2.5 rounded-xl transition shadow-lg border border-rose-400/40">
+                    ☠️ RED TEAM ATTACK
+                </button>
+            </div>
+        </header>
 
-                    <div id="otpBox" class="hidden md:col-span-4 bg-amber-950/40 border border-amber-500/50 rounded-xl p-3.5 flex flex-col md:flex-row items-center justify-between gap-3">
-                        <div class="text-xs text-amber-200">
-                            <p class="font-bold text-amber-400">📲 Требуется подтверждение 2FA</p>
-                            <p class="mt-0.5">Код: <span id="demoOtpDisplay" class="font-mono font-black text-base text-white bg-amber-600/40 px-2 py-0.5 rounded">------</span></p>
+        <!-- KILL SWITCH (DEFCON) -->
+        <section id="killSwitchSection" class="w-full mb-6">
+            <div class="bg-gradient-to-r from-rose-950/60 via-slate-900 to-slate-900 border border-rose-600/50 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3.5">
+                    <div class="relative flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600/20 border border-rose-500">
+                        <span class="text-rose-400 font-black text-xs">⚠️</span>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-rose-300">Аварийный контур защиты (DEFCON Status)</h3>
+                            <span id="defconBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded">STATUS: NORMAL</span>
                         </div>
-                        <input type="text" id="trOtpInput" maxlength="6" placeholder="Код" class="bg-slate-900 border border-amber-500/60 rounded-lg px-3 py-2 text-sm font-mono text-center text-white w-36 focus:outline-none">
+                        <p id="killSwitchHint" class="text-xs text-slate-400 mt-0.5">Управление разрешено только подтверждённому <b>SECURITY_OFFICER</b>.</p>
+                    </div>
+                </div>
+                <button id="killSwitchBtn" onclick="toggleKillSwitch()" class="w-full md:w-auto bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 hover:to-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-rose-400/60">
+                    🛑 EMERGENCY KILL SWITCH
+                </button>
+            </div>
+        </section>
+
+        <!-- KPI Метрики SOC -->
+        <section id="socStatsSection" class="w-full mb-6 grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+                <span class="text-[11px] text-slate-400 uppercase">Успешные</span>
+                <div id="statSuccess" class="text-xl font-black text-emerald-400 mt-1">0</div>
+            </div>
+            <div id="blockedCard" class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg transition-all">
+                <span class="text-[11px] text-slate-400 uppercase">Фрод-блокировки</span>
+                <div id="statBlocked" class="text-xl font-black text-rose-500 mt-1">0</div>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+                <span class="text-[11px] text-slate-400 uppercase">Оборот</span>
+                <div id="statVolume" class="text-xl font-black text-cyan-400 mt-1">0 KZT</div>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+                <span class="text-[11px] text-slate-400 uppercase">Пик Risk Score</span>
+                <div id="statRisk" class="text-xl font-black text-amber-400 mt-1">0 / 100</div>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+                <span class="text-[11px] text-slate-400 uppercase">IP в блеклисте</span>
+                <div id="statDbIp" class="text-xl font-black text-purple-400 mt-1">0</div>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
+                <span class="text-[11px] text-slate-400 uppercase">Открыто инцидентов</span>
+                <div id="statIncidents" class="text-xl font-black text-orange-400 mt-1">0</div>
+            </div>
+        </section>
+
+        <main class="w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Левая колонка -->
+            <div class="space-y-6">
+                <section id="openClientCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h2 class="text-lg font-bold mb-1 text-emerald-400">➕ Открыть счёт клиенту напрямую</h2>
+                    <p class="text-[11px] text-slate-400 mb-3">Оформление счёта в отделении (<b>OPERATOR</b> / <b>SECURITY_OFFICER</b>)</p>
+                    <form id="openClientForm" class="space-y-2.5">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Логин клиента</label>
+                            <input type="text" id="cliUsername" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" placeholder="client_ivan">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Пароль</label>
+                            <input type="password" id="cliPassword" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" placeholder="••••••">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Депозит (KZT)</label>
+                                <input type="number" id="cliBalance" value="250000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Лимит/день</label>
+                                <input type="number" id="cliLimit" value="300000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm transition">
+                            Открыть клиентский счёт
+                        </button>
+                    </form>
+                    <div id="openClientResult" class="hidden mt-3 text-xs p-2.5 rounded-lg"></div>
+                </section>
+
+                <section id="usersDirectorySection" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-lg font-bold text-cyan-400">👥 Реестр счетов и ролей</h2>
+                        <button onclick="loadUsersList()" class="text-xs text-slate-400 hover:text-white">↻</button>
+                    </div>
+                    <div id="usersDirectory" class="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-44 overflow-y-auto space-y-1.5 text-xs font-mono">
+                        <p class="text-slate-500">Загрузка списка...</p>
+                    </div>
+                </section>
+
+                <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 id="balanceCardTitle" class="text-lg font-bold text-blue-400">🔐 Дешифровка баланса и лимитов</h2>
+                        <button type="button" id="refreshMyAccountBtn" onclick="loadMyAccountSummary()" class="hidden text-xs text-cyan-300 hover:text-white">↻</button>
+                    </div>
+                    <form id="balanceForm" class="space-y-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">ID или логин</label>
+                            <input type="text" id="balUserId" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="1 или логин клиента">
+                        </div>
+                        <button type="submit" id="balanceSubmitBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-sm transition">Проверить счёт</button>
+                    </form>
+                    <div id="balanceResult" class="mt-3 hidden bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-1.5"></div>
+                </section>
+            </div>
+
+            <!-- Центральная и правая колонки -->
+            <div class="lg:col-span-2 space-y-6">
+
+                <section id="applicationsSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <div>
+                            <h2 class="text-lg font-bold text-cyan-400">📥 Заявки на открытие счёта</h2>
+                            <p class="text-[11px] text-slate-400">Одобрение создаёт аккаунт <b>CLIENT</b> и открывает зашифрованный счёт</p>
+                        </div>
+                        <button onclick="loadApplications()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
+                    </div>
+                    <div id="applicationsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 max-h-52 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+                        <p class="text-slate-500">Загрузка заявок...</p>
+                    </div>
+                </section>
+
+                <section id="transferCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                        <div>
+                            <h2 class="text-lg font-bold text-emerald-400">💸 Транзакционный шлюз + Идемпотентность</h2>
+                            <p id="transferRoleNote" class="text-[11px] text-slate-400"><b>CLIENT</b> переводит со своего счёта; <b>OPERATOR / SECURITY_OFFICER</b> — по счетам</p>
+                        </div>
+                        <button type="button" onclick="generateNewIdempotencyKey()" class="text-xs text-cyan-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md border border-slate-700">
+                            🔄 Новый ключ транзакции
+                        </button>
                     </div>
 
-                    <button type="submit" class="md:col-span-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg text-sm transition">
-                        Выполнить перевод (повторный клик с тем же ключом не спишет дважды)
-                    </button>
-                </form>
-                <div id="transferResult" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
-            </section>
+                    <form id="transferForm" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">ID Отправителя</label>
+                            <input type="number" id="trSender" required value="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">ID Получателя</label>
+                            <input type="number" id="trReceiver" required value="2" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Сумма (KZT)</label>
+                            <input type="number" id="trAmount" required value="15000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Idempotency Key</label>
+                            <input type="text" id="trIdemKey" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-emerald-400">
+                        </div>
 
-            <!-- Журнал инцидентов (Incident Timeline) -->
-            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-lg font-bold text-orange-400">🚨 Журнал инцидентов безопасности (Incident Timeline)</h2>
-                    <button onclick="loadIncidents()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
-                </div>
-                <div id="incidentsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-32 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
-                    <p class="text-slate-500">Загрузка инцидентов...</p>
-                </div>
-            </section>
+                        <div id="otpBox" class="hidden md:col-span-4 bg-amber-950/40 border border-amber-500/50 rounded-xl p-3.5 flex flex-col md:flex-row items-center justify-between gap-3">
+                            <div class="text-xs text-amber-200">
+                                <p class="font-bold text-amber-400">📲 Требуется подтверждение 2FA</p>
+                                <p class="mt-0.5">Код: <span id="demoOtpDisplay" class="font-mono font-black text-base text-white bg-amber-600/40 px-2 py-0.5 rounded">------</span></p>
+                            </div>
+                            <input type="text" id="trOtpInput" maxlength="6" placeholder="Код" class="bg-slate-900 border border-amber-500/60 rounded-lg px-3 py-2 text-sm font-mono text-center text-white w-36 focus:outline-none">
+                        </div>
 
-            <!-- Неизменяемый реестр аудита -->
-            <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <div class="flex justify-between items-center mb-3">
-                    <h2 class="text-lg font-bold text-amber-400">📜 Неизменяемый реестр аудита (Hash-Chained Ledger)</h2>
-                    <button onclick="refreshAll()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
-                </div>
-                <div id="logsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-36 overflow-y-auto space-y-1.5 font-mono text-xs text-slate-300">
-                    <p class="text-slate-500">Загрузка логов...</p>
-                </div>
-            </section>
+                        <button type="submit" class="md:col-span-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg text-sm transition">
+                            Выполнить перевод (повторный клик с тем же ключом не спишет дважды)
+                        </button>
+                    </form>
+                    <div id="transferResult" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
+                </section>
 
-        </div>
-    </main>
+                <section id="myTransactionsSection" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-lg font-bold text-cyan-400">💳 Мои транзакции</h2>
+                        <button onclick="loadMyTransactions()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
+                    </div>
+                    <div id="myTransactionsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-48 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+                        <p class="text-slate-500">Загрузка транзакций...</p>
+                    </div>
+                </section>
+
+                <section id="incidentsSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-lg font-bold text-orange-400">🚨 Журнал инцидентов безопасности (Incident Timeline)</h2>
+                        <button onclick="loadIncidents()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
+                    </div>
+                    <div id="incidentsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-32 overflow-y-auto space-y-2 font-mono text-xs text-slate-300">
+                        <p class="text-slate-500">Загрузка инцидентов...</p>
+                    </div>
+                </section>
+
+                <section id="auditLogsSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-lg font-bold text-amber-400">📜 Неизменяемый реестр аудита (Hash-Chained Ledger)</h2>
+                        <button onclick="refreshAll()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Обновить</button>
+                    </div>
+                    <div id="logsContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3 h-36 overflow-y-auto space-y-1.5 font-mono text-xs text-slate-300">
+                        <p class="text-slate-500">Загрузка логов...</p>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
 
     <!-- Модалка отчета -->
     <div id="reportModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -221,6 +355,7 @@
                 <button onclick="closeReportModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
             </div>
             <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 text-xs font-mono">
+                <p><span class="text-slate-400">Выгрузил:</span> <span class="text-cyan-300" id="repActor"></span></p>
                 <p><span class="text-slate-400">Стандарт:</span> <span class="text-emerald-400" id="repStandard"></span></p>
                 <p><span class="text-slate-400">Сгенерирован:</span> <span class="text-white" id="repTime"></span></p>
                 <p><span class="text-slate-400">Всего записей:</span> <span class="text-cyan-300" id="repCounts"></span></p>
@@ -257,22 +392,441 @@
     <script>
         const API_URL = "http://127.0.0.1:8000";
         let latestReportData = null;
+        let currentUserObj = null;
+
+        function getToken() {
+            return localStorage.getItem("sf_token");
+        }
+
+        function setSession(token, user) {
+            localStorage.setItem("sf_token", token);
+            localStorage.setItem("sf_user", JSON.stringify(user));
+        }
+
+        function clearSession() {
+            localStorage.removeItem("sf_token");
+            localStorage.removeItem("sf_user");
+            currentUserObj = null;
+        }
+
+        async function apiFetch(path, options = {}) {
+            const token = getToken();
+            const headers = { ...(options.headers || {}) };
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+            const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+            if (res.status === 401 && !path.startsWith("/auth/") && path !== "/transfer") {
+                clearSession();
+                showAuthScreen();
+            }
+            return res;
+        }
+
+        function showAuthScreen() {
+            document.getElementById("authScreen").classList.remove("hidden");
+            document.getElementById("dashboardScreen").classList.add("hidden");
+        }
+
+        function applyRoleUI(user) {
+            const role = user.role;
+            const uid = user.user_id || user.id;
+
+            const isClient = role === "CLIENT";
+            const isAuditor = role === "AUDITOR";
+            const isOfficer = role === "SECURITY_OFFICER";
+            const canProcessClients = role === "OPERATOR" || role === "SECURITY_OFFICER";
+
+            document.getElementById("staffChainBtn").classList.toggle("hidden", isClient);
+            document.getElementById("staffReportBtn").classList.toggle("hidden", isClient);
+            document.getElementById("redTeamBtn").classList.toggle("hidden", isClient);
+            document.getElementById("killSwitchSection").classList.toggle("hidden", isClient);
+            document.getElementById("socStatsSection").classList.toggle("hidden", isClient);
+            document.getElementById("usersDirectorySection").classList.toggle("hidden", isClient);
+            document.getElementById("incidentsSection").classList.toggle("hidden", isClient);
+            document.getElementById("auditLogsSection").classList.toggle("hidden", isClient);
+            document.getElementById("myTransactionsSection").classList.toggle("hidden", !isClient);
+            document.getElementById("openClientCard").classList.toggle("hidden", !canProcessClients);
+            document.getElementById("applicationsSection").classList.toggle("hidden", !canProcessClients);
+
+            const balInput = document.getElementById("balUserId");
+            const balBtn = document.getElementById("balanceSubmitBtn");
+            const balTitle = document.getElementById("balanceCardTitle");
+            const refreshMyAccBtn = document.getElementById("refreshMyAccountBtn");
+
+            if (isClient) {
+                balTitle.innerText = "💰 Мой счёт и лимиты";
+                balInput.value = uid;
+                balInput.readOnly = true;
+                balInput.classList.add("opacity-70");
+                balBtn.classList.add("hidden");
+                refreshMyAccBtn.classList.remove("hidden");
+            } else {
+                balTitle.innerText = "🔐 Дешифровка баланса и лимитов";
+                balInput.readOnly = false;
+                balInput.classList.remove("opacity-70");
+                balBtn.classList.remove("hidden");
+                refreshMyAccBtn.classList.add("hidden");
+            }
+
+            const killBtn = document.getElementById("killSwitchBtn");
+            const killHint = document.getElementById("killSwitchHint");
+            if (isOfficer) {
+                killBtn.disabled = false;
+                killHint.innerHTML = "У вас есть права <b>SECURITY_OFFICER</b>: можно включить/выключить изоляцию DEFCON 1.";
+            } else {
+                killBtn.disabled = true;
+                killHint.innerHTML = `Переключение доступно только <b>SECURITY_OFFICER</b> (ваша роль: <b>${role}</b>).`;
+            }
+
+            const transferCard = document.getElementById("transferCard");
+            const trSender = document.getElementById("trSender");
+            const subtitle = document.getElementById("roleScopeSubtitle");
+
+            if (isAuditor) {
+                transferCard.classList.add("hidden");
+                subtitle.innerText = "Режим аудитора: проверка хеш-цепочки SHA-256, выгрузка отчётов и просмотр журналов";
+            } else if (isClient) {
+                transferCard.classList.remove("hidden");
+                trSender.value = uid;
+                trSender.readOnly = true;
+                trSender.classList.add("opacity-70");
+                subtitle.innerText = `Личный кабинет клиента: ваш счёт (ID #${uid}), ваши транзакции и переводы`;
+            } else {
+                transferCard.classList.remove("hidden");
+                trSender.readOnly = false;
+                trSender.classList.remove("opacity-70");
+                subtitle.innerText = `Рабочий контур сотрудника (${role}): заявки на счета, мониторинг фрода и аудит`;
+            }
+        }
+
+        function showDashboardScreen(user, systemLockdown = false) {
+            currentUserObj = user;
+            document.getElementById("authScreen").classList.add("hidden");
+            document.getElementById("dashboardScreen").classList.remove("hidden");
+            document.getElementById("currentUsername").innerText = user.username;
+            document.getElementById("currentUserId").innerText = user.user_id || user.id;
+            document.getElementById("currentUserRole").innerText = user.role;
+            document.getElementById("balUserId").value = user.user_id || user.id;
+
+            applyRoleUI(user);
+            applyLockdownVisual(systemLockdown);
+            refreshAll();
+        }
+
+        function applyLockdownVisual(isLocked) {
+            const body = document.getElementById('mainBody');
+            const badge = document.getElementById('defconBadge');
+            const btn = document.getElementById('killSwitchBtn');
+            if (isLocked) {
+                body.style.border = "4px solid #f43f5e";
+                badge.innerText = "STATUS: DEFCON 1 (LOCKDOWN)";
+                badge.className = "px-2.5 py-0.5 text-[10px] font-mono font-bold bg-rose-600 text-white border border-rose-400 rounded animate-pulse";
+                btn.innerText = "🟢 ОТКЛЮЧИТЬ KILL SWITCH";
+                btn.className = "w-full md:w-auto bg-gradient-to-r from-emerald-600 to-green-800 hover:from-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-emerald-400/60";
+            } else {
+                body.style.border = "none";
+                badge.innerText = "STATUS: NORMAL";
+                badge.className = "px-2.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded";
+                btn.innerText = "🛑 EMERGENCY KILL SWITCH";
+                btn.className = "w-full md:w-auto bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-rose-400/60";
+            }
+        }
+
+        async function checkInitialSession() {
+            const token = getToken();
+            if (!token) {
+                showAuthScreen();
+                return;
+            }
+            try {
+                const res = await apiFetch("/auth/me");
+                if (res.ok) {
+                    const data = await res.json();
+                    showDashboardScreen(data.user, data.system_lockdown);
+                } else {
+                    clearSession();
+                    showAuthScreen();
+                }
+            } catch (e) {
+                showAuthScreen();
+            }
+        }
+
+        async function quickLogin(username, password) {
+            document.getElementById("loginUsername").value = username;
+            document.getElementById("loginPassword").value = password;
+            await performLogin(username, password);
+        }
+
+        async function performLogin(username, password) {
+            const errBox = document.getElementById("loginError");
+            errBox.classList.add("hidden");
+            try {
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errBox.innerText = `❌ ${data.detail || "Ошибка входа"}`;
+                    errBox.classList.remove("hidden");
+                    return;
+                }
+                setSession(data.token, data);
+                showDashboardScreen(data);
+            } catch (e) {
+                errBox.innerText = "❌ Нет связи с сервером FastAPI (127.0.0.1:8000).";
+                errBox.classList.remove("hidden");
+            }
+        }
+
+        document.getElementById("loginForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            await performLogin(
+                document.getElementById("loginUsername").value,
+                document.getElementById("loginPassword").value
+            );
+        });
+
+        document.getElementById("applicationForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const resBox = document.getElementById("appResult");
+            resBox.classList.add("hidden");
+
+            const payload = {
+                username: document.getElementById("appUsername").value,
+                password: document.getElementById("appPassword").value,
+                requested_balance: parseFloat(document.getElementById("appBalance").value),
+                requested_limit: parseFloat(document.getElementById("appLimit").value)
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/applications`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                resBox.classList.remove("hidden");
+                if (res.ok) {
+                    resBox.className = "mt-3 p-3 rounded-lg text-xs bg-amber-950/60 border border-amber-500/40 text-amber-200";
+                    resBox.innerHTML = `⏳ <b>Заявка #${data.application_id} отправлена!</b> Логин <b>${data.applicant_username}</b> ждёт одобрения операционистом (<b>bank_operator</b>).`;
+                    document.getElementById("loginUsername").value = payload.username;
+                    document.getElementById("appUsername").value = "";
+                    document.getElementById("appPassword").value = "";
+                } else {
+                    resBox.className = "mt-3 p-3 rounded-lg text-xs bg-rose-950 border border-rose-800 text-rose-200";
+                    resBox.innerHTML = `❌ ${data.detail || "Ошибка подачи заявки"}`;
+                }
+            } catch (e) {
+                resBox.classList.remove("hidden");
+                resBox.className = "mt-3 p-3 rounded-lg text-xs bg-rose-950 border border-rose-800 text-rose-200";
+                resBox.innerHTML = "❌ Нет связи с сервером FastAPI.";
+            }
+        });
+
+        document.getElementById("openClientForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const box = document.getElementById("openClientResult");
+            box.classList.add("hidden");
+
+            const payload = {
+                username: document.getElementById("cliUsername").value,
+                password: document.getElementById("cliPassword").value,
+                initial_balance: parseFloat(document.getElementById("cliBalance").value),
+                daily_limit: parseFloat(document.getElementById("cliLimit").value)
+            };
+
+            try {
+                const res = await apiFetch("/clients/open", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                box.classList.remove("hidden");
+                if (res.ok) {
+                    box.className = "mt-3 text-xs p-2.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-200";
+                    box.innerHTML = `✅ Клиент <b>${data.username}</b> создан! <b>User ID: ${data.user_id}</b>`;
+                    document.getElementById("cliUsername").value = "";
+                    document.getElementById("cliPassword").value = "";
+                    refreshAll();
+                } else {
+                    box.className = "mt-3 text-xs p-2.5 rounded-lg bg-rose-950 border border-rose-800 text-rose-200";
+                    box.innerHTML = `❌ ${data.detail}`;
+                }
+            } catch (err) {
+                box.classList.remove("hidden");
+                box.className = "mt-3 text-xs p-2.5 rounded-lg bg-rose-950 border border-rose-800 text-rose-200";
+                box.innerHTML = "❌ Ошибка связи с сервером.";
+            }
+        });
+
+        async function loadApplications() {
+            const res = await apiFetch("/applications");
+            if (!res.ok) return;
+            const data = await res.json();
+            const container = document.getElementById("applicationsContainer");
+            container.innerHTML = "";
+            if (data.applications && data.applications.length > 0) {
+                data.applications.forEach(app => {
+                    const isPending = app.status === "PENDING";
+                    const badgeClass = isPending
+                        ? "bg-amber-600/30 text-amber-300 border border-amber-500/40"
+                        : (app.status === "APPROVED" ? "bg-emerald-900 text-emerald-300" : "bg-rose-900 text-rose-300");
+                    const actionsHtml = isPending
+                        ? `<div class="flex gap-1.5 shrink-0">
+                               <button onclick="approveApplication(${app.id})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded text-[10px] font-bold">Одобрить</button>
+                               <button onclick="rejectApplication(${app.id})" class="bg-rose-900 hover:bg-rose-800 text-rose-200 px-2.5 py-1 rounded text-[10px] font-bold">Отклонить</button>
+                           </div>`
+                        : "";
+                    const div = document.createElement("div");
+                    div.className = "border-b border-slate-900 pb-2 flex justify-between items-center gap-2";
+                    div.innerHTML = `
+                        <div>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${app.status}</span>
+                            <strong class="text-cyan-300 ml-1">#${app.id} ${app.applicant_username}</strong>
+                            <span class="text-slate-400 ml-1">депозит: ${Number(app.requested_balance).toLocaleString()} KZT, лимит: ${Number(app.requested_limit).toLocaleString()} KZT</span>
+                        </div>
+                        ${actionsHtml}
+                    `;
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = `<p class="text-slate-500">Заявок на открытие счёта пока нет.</p>`;
+            }
+        }
+
+        async function approveApplication(appId) {
+            const res = await apiFetch(`/applications/${appId}/approve`, { method: "POST" });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.detail || "Ошибка одобрения");
+                return;
+            }
+            refreshAll();
+        }
+
+        async function rejectApplication(appId) {
+            const res = await apiFetch(`/applications/${appId}/reject`, { method: "POST" });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.detail || "Ошибка отклонения");
+                return;
+            }
+            refreshAll();
+        }
+
+        async function logoutUser() {
+            await apiFetch("/auth/logout", { method: "POST" });
+            clearSession();
+            showAuthScreen();
+        }
 
         function generateNewIdempotencyKey() {
             document.getElementById('trIdemKey').value = "tx_" + Math.random().toString(36).substring(2, 10);
         }
         generateNewIdempotencyKey();
 
-        function getSelectedRole() {
-            return document.getElementById('activeRole').value;
+        async function refreshAll() {
+            if (!currentUserObj) return;
+            if (currentUserObj.role === "CLIENT") {
+                await Promise.all([loadMyAccountSummary(), loadMyTransactions()]);
+            } else {
+                const tasks = [loadLogs(), loadStats(), loadIncidents(), loadUsersList()];
+                if (currentUserObj.role === "OPERATOR" || currentUserObj.role === "SECURITY_OFFICER") {
+                    tasks.push(loadApplications());
+                }
+                await Promise.all(tasks);
+            }
         }
 
-        async function refreshAll() {
-            await Promise.all([loadLogs(), loadStats(), loadIncidents()]);
+        async function loadMyAccountSummary() {
+            if (!currentUserObj) return;
+            const uid = currentUserObj.user_id || currentUserObj.id;
+            await fetchAccountByQuery(String(uid), true);
+        }
+
+        async function fetchAccountByQuery(userId, isClientView = false) {
+            const resBox = document.getElementById('balanceResult');
+            try {
+                const res = await apiFetch(`/account/${encodeURIComponent(userId)}?t=${Date.now()}`);
+                const data = await res.json();
+                resBox.classList.remove('hidden');
+
+                if (res.ok && data.status === "success") {
+                    const cipherLine = isClientView
+                        ? ""
+                        : `<p class="text-slate-500 font-mono break-all"><strong>Cipher:</strong> <span class="text-amber-400/80">${data.raw_cipher_preview}</span></p>`;
+                    resBox.innerHTML = `
+                        <p><strong>Аккаунт:</strong> <span class="text-cyan-300 font-bold">${data.username} (ID: ${data.user_id})</span></p>
+                        <p><strong>Доступно:</strong> <span class="text-emerald-400 font-bold text-sm">${data.balance.toLocaleString()} ${data.currency}</span></p>
+                        <p><strong>Дневной лимит:</strong> <span class="text-amber-300">${data.remaining_daily_limit.toLocaleString()} / ${data.daily_limit.toLocaleString()} ${data.currency}</span></p>
+                        ${cipherLine}
+                    `;
+                } else {
+                    resBox.innerHTML = `<p class="text-rose-400">❌ ${data.detail || "Счет не найден."}</p>`;
+                }
+            } catch (err) {
+                resBox.classList.remove('hidden');
+                resBox.innerHTML = `<p class="text-rose-400">❌ Ошибка связи.</p>`;
+            }
+        }
+
+        async function loadMyTransactions() {
+            const res = await apiFetch("/my-transactions");
+            if (!res.ok) return;
+            const data = await res.json();
+            const container = document.getElementById("myTransactionsContainer");
+            container.innerHTML = "";
+            if (data.transactions && data.transactions.length > 0) {
+                data.transactions.forEach(tx => {
+                    const isOut = tx.direction === "OUT";
+                    const sign = isOut ? "-" : "+";
+                    const amtColor = isOut ? "text-rose-400" : "text-emerald-400";
+                    const statusBadge = tx.status === "SUCCESS"
+                        ? `<span class="text-emerald-400 text-[10px]">SUCCESS</span>`
+                        : `<span class="text-rose-400 text-[10px]">BLOCKED</span>`;
+                    const div = document.createElement("div");
+                    div.className = "border-b border-slate-900 pb-1.5 flex justify-between items-center gap-2";
+                    div.innerHTML = `
+                        <div>
+                            <span class="text-slate-500">[${tx.created_at}]</span>
+                            <span>${tx.sender_username || 'ID#' + tx.sender_account_id} → ${tx.receiver_username || 'ID#' + tx.receiver_account_id}</span>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <span class="font-bold ${amtColor}">${sign}${Number(tx.amount).toLocaleString()} KZT</span>
+                            <span class="ml-2">${statusBadge}</span>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = `<p class="text-slate-500">У вас пока нет транзакций.</p>`;
+            }
+        }
+
+        async function loadUsersList() {
+            const res = await apiFetch("/users");
+            if (!res.ok) return;
+            const data = await res.json();
+            const box = document.getElementById("usersDirectory");
+            box.innerHTML = "";
+            data.users.forEach(u => {
+                const badgeColor = u.role === 'SECURITY_OFFICER'
+                    ? 'text-rose-400'
+                    : (u.role === 'OPERATOR' ? 'text-emerald-400' : (u.role === 'CLIENT' ? 'text-cyan-400' : 'text-amber-400'));
+                const div = document.createElement("div");
+                div.className = "border-b border-slate-900 pb-1 flex justify-between items-center";
+                div.innerHTML = `<span><b>#${u.id}</b> ${u.username}</span><span class="${badgeColor} text-[10px] font-bold">${u.role}</span>`;
+                box.appendChild(div);
+            });
         }
 
         async function checkChainAndView() {
-            const res = await fetch(`${API_URL}/db-chain-check`);
+            const res = await apiFetch("/db-chain-check");
             const data = await res.json();
             const sumBox = document.getElementById('chainSummary');
             const viewBox = document.getElementById('viewRowsBox');
@@ -304,88 +858,23 @@
 
         async function toggleKillSwitch() {
             try {
-                const res = await fetch(`${API_URL}/emergency-lockdown`, {
-                    method: 'POST',
-                    headers: { 'X-Role': getSelectedRole() }
-                });
+                const res = await apiFetch("/emergency-lockdown", { method: 'POST' });
                 const data = await res.json();
                 if (!res.ok) {
                     alert(data.detail || "Доступ запрещён");
                     return;
                 }
-
-                const body = document.getElementById('mainBody');
-                const badge = document.getElementById('defconBadge');
-                const btn = document.getElementById('killSwitchBtn');
-
-                if (data.system_lockdown) {
-                    body.style.border = "4px solid #f43f5e";
-                    badge.innerText = "STATUS: DEFCON 1 (LOCKDOWN)";
-                    badge.className = "px-2.5 py-0.5 text-[10px] font-mono font-bold bg-rose-600 text-white border border-rose-400 rounded animate-pulse";
-                    btn.innerText = "🟢 ОТКЛЮЧИТЬ KILL SWITCH";
-                    btn.className = "w-full md:w-auto bg-gradient-to-r from-emerald-600 to-green-800 hover:from-emerald-500 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-emerald-400/60";
-                } else {
-                    body.style.border = "none";
-                    badge.innerText = "STATUS: NORMAL";
-                    badge.className = "px-2.5 py-0.5 text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded";
-                    btn.innerText = "🛑 EMERGENCY KILL SWITCH";
-                    btn.className = "w-full md:w-auto bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-500 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition uppercase tracking-wider border border-rose-400/60";
-                }
+                applyLockdownVisual(data.system_lockdown);
                 refreshAll();
             } catch (e) {
                 alert("❌ Ошибка связи с сервером.");
             }
         }
 
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('regUsername').value;
-            const password = document.getElementById('regPassword').value;
-            const initial_balance = parseFloat(document.getElementById('regBalance').value);
-            const daily_limit = parseFloat(document.getElementById('regLimit').value);
-            const box = document.getElementById('regResult');
-
-            const res = await fetch(`${API_URL}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, initial_balance, daily_limit })
-            });
-            const data = await res.json();
-            box.classList.remove('hidden');
-            if (res.ok) {
-                box.className = "mt-3 text-xs p-2.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-200";
-                box.innerHTML = `✅ Счет открыт! <b>User ID: ${data.user_id}</b>`;
-            } else {
-                box.className = "mt-3 text-xs p-2.5 rounded-lg bg-rose-950 border border-rose-800 text-rose-200";
-                box.innerHTML = `❌ ${data.detail}`;
-            }
-            refreshAll();
-        });
-
         document.getElementById('balanceForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const userId = document.getElementById('balUserId').value.trim();
-            const resBox = document.getElementById('balanceResult');
-
-            try {
-                const res = await fetch(`${API_URL}/account/${encodeURIComponent(userId)}?t=${Date.now()}`);
-                const data = await res.json();
-                resBox.classList.remove('hidden');
-
-                if (res.ok && data.status === "success") {
-                    resBox.innerHTML = `
-                        <p><strong>Клиент:</strong> <span class="text-cyan-300 font-bold">${data.username} (ID: ${data.user_id})</span></p>
-                        <p><strong>Доступно:</strong> <span class="text-emerald-400 font-bold text-sm">${data.balance.toLocaleString()} ${data.currency}</span></p>
-                        <p><strong>Дневной лимит:</strong> <span class="text-amber-300">${data.remaining_daily_limit.toLocaleString()} / ${data.daily_limit.toLocaleString()} ${data.currency}</span></p>
-                        <p class="text-slate-500 font-mono break-all"><strong>Cipher:</strong> <span class="text-amber-400/80">${data.raw_cipher_preview}</span></p>
-                    `;
-                } else {
-                    resBox.innerHTML = `<p class="text-rose-400">❌ Счет не найден.</p>`;
-                }
-            } catch (err) {
-                resBox.classList.remove('hidden');
-                resBox.innerHTML = `<p class="text-rose-400">❌ Ошибка связи.</p>`;
-            }
+            await fetchAccountByQuery(userId, currentUserObj && currentUserObj.role === "CLIENT");
         });
 
         document.getElementById('transferForm').addEventListener('submit', async (e) => {
@@ -398,7 +887,7 @@
             const box = document.getElementById('transferResult');
             const otpBox = document.getElementById('otpBox');
 
-            const res = await fetch(`${API_URL}/transfer`, {
+            const res = await apiFetch("/transfer", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -413,7 +902,7 @@
             const data = await res.json();
             box.classList.remove('hidden');
 
-            if (res.status === 401 && data.detail && data.detail.status === "2FA_REQUIRED") {
+            if (res.status === 401 && data.detail && typeof data.detail === 'object' && data.detail.status === "2FA_REQUIRED") {
                 otpBox.classList.remove('hidden');
                 document.getElementById('demoOtpDisplay').innerText = data.detail.demo_otp_push;
                 document.getElementById('trOtpInput').value = data.detail.demo_otp_push;
@@ -456,7 +945,7 @@
 
             for (let i = 1; i <= 3; i++) {
                 try {
-                    await fetch(`${API_URL}/transfer`, {
+                    await apiFetch("/transfer", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ sender_user_id: senderId, receiver_user_id: receiverId, amount: 2000000, is_red_team: true })
@@ -474,10 +963,7 @@
         }
 
         async function resolveIncident(id) {
-            const res = await fetch(`${API_URL}/incidents/${id}/resolve`, {
-                method: 'POST',
-                headers: { 'X-Role': getSelectedRole() }
-            });
+            const res = await apiFetch(`/incidents/${id}/resolve`, { method: 'POST' });
             const data = await res.json();
             if (!res.ok) {
                 alert(data.detail || "Недостаточно прав");
@@ -487,21 +973,26 @@
         }
 
         async function loadIncidents() {
-            const res = await fetch(`${API_URL}/incidents`);
+            const res = await apiFetch("/incidents");
+            if (!res.ok) return;
             const data = await res.json();
             const container = document.getElementById('incidentsContainer');
             container.innerHTML = "";
+            const canResolve = currentUserObj && currentUserObj.role === "SECURITY_OFFICER";
             if (data.incidents && data.incidents.length > 0) {
                 data.incidents.forEach(inc => {
                     const isOpen = inc.status === 'OPEN';
                     const item = document.createElement('div');
                     item.className = "border-b border-slate-900 pb-1.5 flex justify-between items-center gap-2";
+                    const resolveBtn = (isOpen && canResolve)
+                        ? `<button onclick="resolveIncident(${inc.id})" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-1 rounded text-[10px] shrink-0">Закрыть</button>`
+                        : "";
                     item.innerHTML = `
                         <div>
                             <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${isOpen ? 'bg-rose-600 text-white' : 'bg-emerald-900 text-emerald-300'}">${inc.status}</span>
                             <strong class="text-orange-300 ml-1">[${inc.incident_type}]</strong> ${inc.summary}
                         </div>
-                        ${isOpen ? `<button onclick="resolveIncident(${inc.id})" class="bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2 py-1 rounded text-[10px] shrink-0">Закрыть</button>` : ''}
+                        ${resolveBtn}
                     `;
                     container.appendChild(item);
                 });
@@ -511,9 +1002,10 @@
         }
 
         async function exportSignedReport() {
-            const res = await fetch(`${API_URL}/export-report`);
+            const res = await apiFetch("/export-report");
             const data = await res.json();
             latestReportData = data;
+            document.getElementById('repActor').innerText = data.exported_by;
             document.getElementById('repStandard').innerText = data.encryption_standard;
             document.getElementById('repTime').innerText = data.generated_at;
             document.getElementById('repCounts').innerText = `${data.total_transactions} транзакций / ${data.total_incidents} инцидентов / ${data.db_blocked_ips} IP в блеклисте`;
@@ -539,13 +1031,14 @@
         }
 
         async function loadLogs() {
-            const res = await fetch(`${API_URL}/audit-logs`);
+            const res = await apiFetch("/audit-logs");
+            if (!res.ok) return;
             const data = await res.json();
             const container = document.getElementById('logsContainer');
             container.innerHTML = "";
             if (data.logs && data.logs.length > 0) {
                 data.logs.forEach(log => {
-                    const isCrit = log.action.includes("TAMPER") || log.action.includes("FRAUD") || log.action.includes("LOCKDOWN") || log.action.includes("LIMIT_EXCEEDED");
+                    const isCrit = log.action.includes("TAMPER") || log.action.includes("FRAUD") || log.action.includes("LOCKDOWN") || log.action.includes("LIMIT_EXCEEDED") || log.action.includes("LOGIN_FAILED");
                     const color = isCrit ? "text-rose-400" : "text-emerald-400";
                     const item = document.createElement('div');
                     item.className = "border-b border-slate-900 pb-1";
@@ -556,19 +1049,18 @@
         }
 
         async function loadStats() {
-            const res = await fetch(`${API_URL}/stats`);
+            const res = await apiFetch("/stats");
+            if (!res.ok) return;
             const data = await res.json();
-            if (res.ok) {
-                document.getElementById('statSuccess').innerText = data.successful_transactions;
-                document.getElementById('statBlocked').innerText = data.blocked_fraud_attempts;
-                document.getElementById('statVolume').innerText = `${data.total_protected_volume_kzt.toLocaleString()} KZT`;
-                document.getElementById('statRisk').innerText = `${data.peak_risk_score} / 100`;
-                document.getElementById('statDbIp').innerText = data.db_blacklisted_ips;
-                document.getElementById('statIncidents').innerText = data.open_incidents;
-            }
+            document.getElementById('statSuccess').innerText = data.successful_transactions;
+            document.getElementById('statBlocked').innerText = data.blocked_fraud_attempts;
+            document.getElementById('statVolume').innerText = `${data.total_protected_volume_kzt.toLocaleString()} KZT`;
+            document.getElementById('statRisk').innerText = `${data.peak_risk_score} / 100`;
+            document.getElementById('statDbIp').innerText = data.db_blacklisted_ips;
+            document.getElementById('statIncidents').innerText = data.open_incidents;
         }
 
-        refreshAll();
+        checkInitialSession();
     </script>
 </body>
 </html>
