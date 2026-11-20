@@ -2,8 +2,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
+secret.key
 .env
 venv/
 .venv/

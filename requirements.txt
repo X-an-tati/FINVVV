@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-psycopg2-binary
 cryptography
 pydantic
-passlib[bcrypt]
+httpx

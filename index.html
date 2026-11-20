@@ -767,7 +767,7 @@
                         ${cipherLine}
                     `;
                 } else {
-                    resBox.innerHTML = `<p class="text-rose-400">❌ ${data.detail || "Счет не найден."}</p>`;
+                    resBox.innerHTML = `<p class="text-rose-400">❌ ${data.message || data.detail || "Счет не найден."}</p>`;
                 }
             } catch (err) {
                 resBox.classList.remove('hidden');

@@ -2,8 +2,9 @@ import os
 import database
 
 database.DB_NAME = "test_securefin.db"
-if os.path.exists("test_securefin.db"):
-    os.remove("test_securefin.db")
+for fname in ("test_securefin.db", "test_securefin.db-wal", "test_securefin.db-shm"):
+    if os.path.exists(fname):
+        os.remove(fname)
 
 from fastapi.testclient import TestClient
 from main import app
@@ -28,7 +29,24 @@ def run_all_tests():
         assert r_aud.status_code == 200, r_aud.text
         aud_token = r_aud.json()["token"]
 
-        # 2. Заявка клиента -> вход до одобрения запрещён -> одобрение операционистом -> вход разрешён
+        # Аудитор не может проводить переводы
+        r_aud_tx = client.post(
+            "/transfer",
+            headers=auth_header(aud_token),
+            json={"sender_user_id": 3, "receiver_user_id": 2, "amount": 1000},
+        )
+        assert r_aud_tx.status_code == 403
+
+        # 2. Заявка на отклонение + заявка на одобрение
+        r_rej_app = client.post(
+            "/applications",
+            json={"username": "bob_rejected", "password": "secret123", "requested_balance": 100000, "requested_limit": 100000},
+        )
+        assert r_rej_app.status_code == 200
+        rej_id = r_rej_app.json()["application_id"]
+        assert client.post(f"/applications/{rej_id}/reject", headers=auth_header(op_token)).status_code == 200
+        assert client.post("/auth/login", json={"username": "bob_rejected", "password": "secret123"}).status_code == 403
+
         r_app = client.post(
             "/applications",
             json={
@@ -44,11 +62,9 @@ def run_all_tests():
         r_early_login = client.post("/auth/login", json={"username": "alice_test", "password": "secret123"})
         assert r_early_login.status_code == 403
 
-        # Аудитор не может одобрять заявки
         r_aud_approve = client.post(f"/applications/{app_id}/approve", headers=auth_header(aud_token))
         assert r_aud_approve.status_code == 403
 
-        # Операционист одобряет заявку
         r_approve = client.post(f"/applications/{app_id}/approve", headers=auth_header(op_token))
         assert r_approve.status_code == 200, r_approve.text
         alice_id = r_approve.json()["client_user_id"]
@@ -62,7 +78,7 @@ def run_all_tests():
         assert client.get("/account/1", headers=auth_header(alice_token)).status_code == 403
         assert client.get("/audit-logs", headers=auth_header(alice_token)).status_code == 403
 
-        # 4. Идемпотентность перевода (повтор с тем же ключом не списывает дважды)
+        # 4. Идемпотентность перевода
         idem = "idem_key_test_001"
         tx1 = client.post(
             "/transfer",
@@ -79,7 +95,7 @@ def run_all_tests():
         assert tx2.status_code == 200 and tx2.json()["status"] == "IDEMPOTENT_REPLAY"
         assert tx2.json()["sender_new_balance"] == 350000.0
 
-        # 5. 2FA на сумму > 100 000 KZT (код хранится в БД)
+        # 5. 2FA на сумму > 100 000 KZT
         tx_2fa = client.post(
             "/transfer",
             headers=auth_header(alice_token),
@@ -101,7 +117,7 @@ def run_all_tests():
         )
         assert tx_2fa_ok.status_code == 200 and tx_2fa_ok.json()["sender_new_balance"] == 200000.0
 
-        # 6. Дневной лимит (осталось 50 000 из 250 000 -> попытка перевести 60 000 блокируется)
+        # 6. Дневной лимит
         tx_limit = client.post(
             "/transfer",
             headers=auth_header(alice_token),
@@ -109,7 +125,7 @@ def run_all_tests():
         )
         assert tx_limit.status_code == 403
 
-        # 7. Kill Switch (только SECURITY_OFFICER, состояние сохраняется в БД)
+        # 7. Kill Switch и разбор инцидентов
         assert client.post("/emergency-lockdown", headers=auth_header(op_token)).status_code == 403
         ks_on = client.post("/emergency-lockdown", headers=auth_header(soc_token))
         assert ks_on.status_code == 200 and ks_on.json()["system_lockdown"] is True
@@ -123,19 +139,24 @@ def run_all_tests():
 
         client.post("/emergency-lockdown", headers=auth_header(soc_token))
 
-        # 8. Проверка целостности SHA-256 хеш-цепочки аудита (100% записей без пропусков)
+        incs = client.get("/incidents", headers=auth_header(soc_token)).json()["incidents"]
+        assert len(incs) > 0
+        assert client.post(f"/incidents/{incs[0]['id']}/resolve", headers=auth_header(soc_token)).status_code == 200
+
+        # 8. Проверка SHA-256 хеш-цепочки и выгрузка комплаенс-отчёта
         chain = client.get("/db-chain-check", headers=auth_header(aud_token))
         assert chain.status_code == 200
         assert chain.json()["chain_valid"] is True
         assert chain.json()["db_trigger_events_count"] > 0
 
-    if os.path.exists("test_securefin.db"):
-        os.remove("test_securefin.db")
-    for suffix in ("-wal", "-shm"):
-        if os.path.exists("test_securefin.db" + suffix):
-            os.remove("test_securefin.db" + suffix)
+        rep = client.get("/export-report", headers=auth_header(aud_token))
+        assert rep.status_code == 200 and len(rep.json()["cryptographic_seal_sha256"]) == 64
 
-    print("✅ ВСЕ 8 ИНТЕГРАЦИОННЫХ ТЕСТОВ БЕЗОПАСНОСТИ И БИЗНЕС-ЛОГИКИ ПРОЙДЕНЫ!")
+    for fname in ("test_securefin.db", "test_securefin.db-wal", "test_securefin.db-shm"):
+        if os.path.exists(fname):
+            os.remove(fname)
+
+    print("✅ ВСЕ ИНТЕГРАЦИОННЫЕ ТЕСТЫ БЕЗОПАСНОСТИ И БИЗНЕС-ЛОГИКИ ПРОЙДЕНЫ!")
 
 
 if __name__ == "__main__":

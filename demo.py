@@ -1,72 +1,109 @@
-import requests
-import time
 import random
+import requests
 
 BASE_URL = "http://127.0.0.1:8000"
 
+
 def run_demo():
     print("=" * 60)
-    print("🚀 ЗАПУСК ДЕМОНСТРАЦИИ SYSTEM SECUREFIN CORE")
+    print("🚀 ДЕМО-СЦЕНАРИЙ SECUREFIN CORE ENTERPRISE (v7.0)")
     print("=" * 60)
 
-    rand_suffix = random.randint(1000, 9999)
-    alice_name = f"alice_{rand_suffix}"
-    bob_name = f"bob_{rand_suffix}"
+    r_root = requests.get(f"{BASE_URL}/", timeout=5)
+    print("\n[0] Статус сервера:", r_root.status_code, r_root.json())
 
-    # 1. Регистрация пользователей
-    print(f"\n[1] Регистрируем пользователей ({alice_name} и {bob_name})...")
-    
-    alice_data = {"username": alice_name, "password": "securepassword123", "initial_balance": 100000.0}
-    bob_data = {"username": bob_name, "password": "securepassword123", "initial_balance": 50000.0}
+    # 1. Вход под операционистом и аудитором
+    r_op = requests.post(
+        f"{BASE_URL}/auth/login",
+        json={"username": "bank_operator", "password": "op123"},
+        timeout=5,
+    )
+    assert r_op.status_code == 200, f"Ошибка входа оператора: {r_op.text}"
+    op_headers = {"Authorization": f"Bearer {r_op.json()['token']}"}
 
-    res_alice = requests.post(f"{BASE_URL}/register", json=alice_data)
-    res_bob = requests.post(f"{BASE_URL}/register", json=bob_data)
+    r_aud = requests.post(
+        f"{BASE_URL}/auth/login",
+        json={"username": "chief_auditor", "password": "aud123"},
+        timeout=5,
+    )
+    assert r_aud.status_code == 200, f"Ошибка входа аудитора: {r_aud.text}"
+    aud_headers = {"Authorization": f"Bearer {r_aud.json()['token']}"}
 
-    print(f" Ответ регистрации Алисы: {res_alice.status_code} -> {res_alice.json()}")
-    print(f" Ответ регистрации Боба: {res_bob.status_code} -> {res_bob.json()}")
+    # 2. Заявка клиента -> одобрение операционистом -> вход клиента
+    suffix = random.randint(1000, 9999)
+    client_user = f"client_{suffix}"
+    client_pwd = "pass1234"
 
-    if res_alice.status_code != 200 or res_bob.status_code != 200:
-        print("[-] Ошибка регистрации! Проверь бэкенд.")
-        return
+    r_app = requests.post(
+        f"{BASE_URL}/applications",
+        json={
+            "username": client_user,
+            "password": client_pwd,
+            "requested_balance": 200000.0,
+            "requested_limit": 150000.0,
+        },
+        timeout=5,
+    )
+    assert r_app.status_code == 200, f"Ошибка подачи заявки: {r_app.text}"
+    app_id = r_app.json()["application_id"]
+    print(f"\n[1] Создана заявка #{app_id} для '{client_user}' (статус PENDING)")
 
-    alice_id = res_alice.json().get("user_id")
-    bob_id = res_bob.json().get("user_id")
+    r_approve = requests.post(
+        f"{BASE_URL}/applications/{app_id}/approve",
+        headers=op_headers,
+        timeout=5,
+    )
+    assert r_approve.status_code == 200, f"Ошибка одобрения заявки: {r_approve.text}"
+    client_id = r_approve.json()["client_user_id"]
+    print(f"[2] Заявка одобрена операционистом. Открыт счёт CLIENT ID #{client_id}")
 
-    print(f" [+] Успешно! ID Алисы: {alice_id}, ID Боба: {bob_id}")
+    r_cli_login = requests.post(
+        f"{BASE_URL}/auth/login",
+        json={"username": client_user, "password": client_pwd},
+        timeout=5,
+    )
+    assert r_cli_login.status_code == 200, f"Ошибка входа клиента: {r_cli_login.text}"
+    cli_headers = {"Authorization": f"Bearer {r_cli_login.json()['token']}"}
 
-    # 2. Проверка балансов
-    print(f"\n[2] Проверяем зашифрованные балансы через API для ID {alice_id}...")
-    bal_res = requests.get(f"{BASE_URL}/account/{alice_id}")
-    bal_alice = bal_res.json()
-    print(f" [+] Баланс Алисы (расшифрован на лету): {bal_alice.get('balance')} {bal_alice.get('currency')} (Статус: {bal_alice.get('security_status')})")
+    # 3. Баланс клиента + перевод с ключом идемпотентности
+    bal = requests.get(f"{BASE_URL}/account/{client_id}", headers=cli_headers, timeout=5).json()
+    print(f"[3] Баланс клиента: {bal.get('balance')} {bal.get('currency')}")
 
-    # 3. Легитимный перевод
-    print(f"\n[3] Совершаем легитимный перевод (5,000 тенге) от ID {alice_id} к ID {bob_id}...")
-    transfer_payload = {
-        "sender_user_id": alice_id,
-        "receiver_user_id": bob_id,
-        "amount": 5000.0
-    }
-    res_tx = requests.post(f"{BASE_URL}/transfer", json=transfer_payload)
-    print(f" Ответ сервера: {res_tx.status_code} -> {res_tx.json()}")
+    idem_key = f"demo_idem_{suffix}"
+    tx1 = requests.post(
+        f"{BASE_URL}/transfer",
+        headers=cli_headers,
+        json={
+            "sender_user_id": client_id,
+            "receiver_user_id": 2,
+            "amount": 10000.0,
+            "idempotency_key": idem_key,
+        },
+        timeout=5,
+    ).json()
+    tx2 = requests.post(
+        f"{BASE_URL}/transfer",
+        headers=cli_headers,
+        json={
+            "sender_user_id": client_id,
+            "receiver_user_id": 2,
+            "amount": 10000.0,
+            "idempotency_key": idem_key,
+        },
+        timeout=5,
+    ).json()
+    print(f"[4] Первый перевод: {tx1.get('status')} | Повтор с тем же ключом: {tx2.get('status')}")
 
-    # 4. Стресс-тест / Антифрод (Velocity Check)
-    print("\n[4] ⚡ СТРЕСС-ТЕСТ: Пытаемся заспамить переводами для вызова Anti-Fraud...")
-    for i in range(4):
-        print(f"   Попытка перевода #{i+1}...")
-        res_spam = requests.post(f"{BASE_URL}/transfer", json=transfer_payload)
-        print(f"   Статус: {res_spam.status_code} | Ответ: {res_spam.json()}")
-        time.sleep(0.2)
-
-    # 5. Выгрузка логов безопасности
-    print("\n[5] 🛡️ Выгружаем неизменяемый Аудит Безопасности (Audit Logs):")
-    logs_res = requests.get(f"{BASE_URL}/audit-logs").json()
-    for log in logs_res.get("logs", [])[:5]:
-        print(f"   🔹 [{log['created_at']}] Юзер ID {log['user_id']} | Событие: {log['action']} | Детали: {log['details']}")
-
-    print("\n" + "=" * 60)
-    print("✨ ДЕМО УСПЕШНО ЗАВЕРШЕНО. ЖЮРИ В ВОСТОРГЕ!")
+    # 4. Проверка хеш-цепочки аудита
+    chain = requests.get(f"{BASE_URL}/db-chain-check", headers=aud_headers, timeout=5).json()
+    print(
+        f"[5] Целостность хеш-цепочки: {chain.get('chain_valid')} "
+        f"(записей в аудите: {chain.get('total_audit_rows')})"
+    )
     print("=" * 60)
+    print("✨ ДЕМО УСПЕШНО ЗАВЕРШЕНО")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
     run_demo()
